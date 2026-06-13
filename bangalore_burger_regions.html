@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🍔 Bangalore Burger Map — Regions</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #111;
+      color: #f0f0f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: linear-gradient(135deg, #7a2e0e 0%, #c44b1e 60%, #e8622a 100%);
+      padding: 12px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 3px 20px rgba(0,0,0,0.5);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    header .logo { font-size: 1.8rem; }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: #fff; }
+    header p { font-size: 0.72rem; color: rgba(255,255,255,0.8); margin-top: 1px; }
+    .header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .pill {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    #status-bar {
+      background: #1a1a1a;
+      border-bottom: 1px solid #2a2a2a;
+      padding: 6px 16px;
+      font-size: 0.72rem;
+      color: #888;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #e8622a;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+    .status-dot.done { background: #5cb85c; animation: none; }
+    .status-dot.error { background: #d9534f; animation: none; }
+
+    #map { flex: 1; }
+
+    /* TOOLTIP */
+    #tooltip {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      max-width: 280px;
+    }
+    #tooltip.visible { opacity: 1; }
+
+    .tt-card {
+      background: rgba(18,18,18,0.97);
+      border: 1px solid #e8622a;
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(232,98,42,0.2);
+      backdrop-filter: blur(10px);
+    }
+
+    .tt-area {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 1.1px;
+      text-transform: uppercase;
+      color: #e8622a;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tt-area::before {
+      content: '';
+      display: inline-block;
+      width: 18px; height: 2px;
+      background: #e8622a;
+      border-radius: 1px;
+    }
+
+    .tt-burger {
+      padding: 8px 0;
+      border-bottom: 1px solid #222;
+    }
+    .tt-burger:last-child { border-bottom: none; padding-bottom: 0; }
+    .tt-burger:first-child { padding-top: 0; }
+
+    .tt-burger-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .tt-rank {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #9e3010, #e8622a);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .tt-name {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: #f5f5f5;
+      flex: 1;
+    }
+
+    .tt-stars {
+      color: #f5a623;
+      font-size: 0.72rem;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .tt-rating {
+      font-weight: 700;
+      font-size: 0.72rem;
+      color: #f5a623;
+    }
+
+    .tt-price {
+      font-size: 0.68rem;
+      color: #6dbf87;
+      font-weight: 600;
+      margin-left: auto;
+    }
+
+    .tt-desc {
+      font-size: 0.72rem;
+      color: #999;
+      line-height: 1.4;
+      margin-top: 3px;
+    }
+
+    /* LEGEND */
+    #legend {
+      position: absolute;
+      bottom: 30px;
+      left: 16px;
+      z-index: 500;
+      background: rgba(18,18,18,0.9);
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.68rem;
+      color: #888;
+      pointer-events: none;
+    }
+    #legend .leg-title {
+      font-weight: 700;
+      color: #bbb;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-size: 0.63rem;
+    }
+    .leg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    .leg-swatch {
+      width: 24px; height: 3px;
+      border-radius: 2px;
+    }
+    .leg-swatch.outline { border-top: 2px dashed #f0a040; background: none; height: 0; }
+    .leg-swatch.region {
+      height: 14px;
+      background: rgba(232,98,42,0.25);
+      border: 1.5px solid rgba(232,98,42,0.7);
+      border-radius: 3px;
+      width: 20px;
+    }
+
+    /* Loading overlay */
+    #loading {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 800;
+      background: rgba(18,18,18,0.9);
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 16px 24px;
+      font-size: 0.82rem;
+      color: #bbb;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .spin {
+      width: 18px; height: 18px;
+      border: 2px solid #333;
+      border-top-color: #e8622a;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🍔</div>
+  <div>
+    <h1>Bangalore Burger Regions</h1>
+    <p>Hover over a highlighted zone to see what's cooking there</p>
+  </div>
+  <div class="header-right">
+    <div class="pill">7 Zones · 10 Burgers</div>
+  </div>
+</header>
+
+<div id="status-bar">
+  <div class="status-dot" id="dot"></div>
+  <span id="status-text">Fetching Bangalore city boundary from OpenStreetMap…</span>
+</div>
+
+<div id="map">
+  <div id="loading"><div class="spin"></div> Loading Bangalore map…</div>
+</div>
+
+<div id="legend">
+  <div class="leg-title">Legend</div>
+  <div class="leg-row"><div class="leg-swatch outline"></div><span>City boundary</span></div>
+  <div class="leg-row"><div class="leg-swatch region"></div><span>Burger zone (hover me)</span></div>
+</div>
+
+<div id="tooltip"><div class="tt-card" id="tt-inner"></div></div>
+
+<script>
+// ─── DATA ──────────────────────────────────────────────────────────────────
+const regions = [
+  {
+    id: "indiranagar",
+    label: "Indiranagar",
+    // Roughly: Old Madras Rd (N) to CMH Rd (S), Domlur (W) to 80Ft Rd (E)
+    coords: [[12.9700,77.6290],[12.9880,77.6290],[12.9880,77.6510],[12.9700,77.6510]],
+    burgers: [
+      { rank:1, name:"Truffles", rating:4.6, price:"₹400–700", tags:"American · Must-visit",
+        desc:"Juicy towers with secret sauces. The perennial #1 — queues are long but worth it." },
+      { rank:7, name:"The Black Rabbit", rating:4.2, price:"₹400–700", tags:"Late-night · Monster",
+        desc:"Open late, portions massive. The Monster Steak Burger is a midnight legend." }
+    ]
+  },
+  {
+    id: "koramangala",
+    label: "Koramangala",
+    // 4th–8th Block area
+    coords: [[12.9170,77.6120],[12.9410,77.6120],[12.9410,77.6400],[12.9170,77.6400]],
+    burgers: [
+      { rank:6, name:"Yomama!", rating:4.3, price:"₹200–450", tags:"Budget · Beef",
+        desc:"Beloved for its Lamb Burger in four sizes. Honest, flavour-packed, easy on the wallet." },
+      { rank:8, name:"Oh! Fries", rating:4.2, price:"₹300–550", tags:"Creative · Fusion",
+        desc:"Desi-fusion burgers like Paneer Masaledar. Great sides, relaxed vibes." }
+    ]
+  },
+  {
+    id: "church-st",
+    label: "Ashok Nagar / Church Street",
+    // Castle Street, Church Street, Brigade Road corridor
+    coords: [[12.9700,77.6000],[12.9820,77.6000],[12.9820,77.6180],[12.9700,77.6180]],
+    burgers: [
+      { rank:3, name:"Plan B", rating:4.4, price:"₹400–800", tags:"Gourmet · Bar",
+        desc:"Meaty monsters and craft cocktails. The stacked patties and smoked sauces define weekend indulgence." },
+      { rank:4, name:"Biggies Burger", rating:4.3, price:"₹250–500", tags:"Grilled · Popular",
+        desc:"India's biggest grilled burger chain. Flame-grilled patties, a dozen custom options, great value." }
+    ]
+  },
+  {
+    id: "museum-road",
+    label: "Museum Road / Richmond Town",
+    // South of Church Street, Richmond Town area
+    coords: [[12.9610,77.6010],[12.9700,77.6010],[12.9700,77.6140],[12.9610,77.6140]],
+    burgers: [
+      { rank:2, name:"The Only Place", rating:4.5, price:"₹500–900", tags:"Beef · Old-school",
+        desc:"Bangalore's oldest burger institution. Handcrafted beef & lamb patties, legendary for decades." }
+    ]
+  },
+  {
+    id: "lavelle",
+    label: "Lavelle Road",
+    // Near Cubbon Park, west of central CBD
+    coords: [[12.9660,77.5860],[12.9800,77.5860],[12.9800,77.6000],[12.9660,77.6000]],
+    burgers: [
+      { rank:5, name:"Smoke House Deli", rating:4.3, price:"₹600–1000", tags:"Upscale · Deli",
+        desc:"Smoked meats, artisan buns, gastropub finesse. The smoky chicken burger is town-famous." }
+    ]
+  },
+  {
+    id: "vasanth-nagar",
+    label: "Vasanth Nagar / Cunningham Rd",
+    // North-west of central, Cunningham Road area
+    coords: [[12.9820,77.5860],[12.9970,77.5860],[12.9970,77.6000],[12.9820,77.6000]],
+    burgers: [
+      { rank:9, name:"Hammered", rating:4.1, price:"₹350–650", tags:"Eclectic · Quirky",
+        desc:"Eccentric interiors, bold hand-pressed patties, toppings that are anything but ordinary." }
+    ]
+  },
+  {
+    id: "infantry",
+    label: "Infantry Road",
+    // Infantry Road, central-north
+    coords: [[12.9820,77.6000],[12.9920,77.6000],[12.9920,77.6180],[12.9820,77.6180]],
+    burgers: [
+      { rank:10, name:"Peppa Zzing", rating:4.1, price:"₹150–350", tags:"No-frills · Value",
+        desc:"Strip away the decor and get pure burger joy. Every patty melts in your mouth. Best value in the city." }
+    ]
+  }
+];
+
+// ─── MAP INIT ──────────────────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [12.9716, 77.5946],
+  zoom: 12,
+  zoomControl: false
+});
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
+
+// ─── TOOLTIP ──────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+const ttInner = document.getElementById('tt-inner');
+
+function starsHtml(r) {
+  const full = Math.floor(r);
+  const half = (r % 1) >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+function ratingColor(r) {
+  if (r >= 4.5) return '#f5a623';
+  if (r >= 4.2) return '#f0b040';
+  return '#d4902a';
+}
+
+function buildTooltip(region) {
+  let html = `<div class="tt-area">📍 ${region.label}</div>`;
+  region.burgers.forEach(b => {
+    html += `
+      <div class="tt-burger">
+        <div class="tt-burger-header">
+          <div class="tt-rank">#${b.rank}</div>
+          <div class="tt-name">${b.name}</div>
+          <div class="tt-price">${b.price}</div>
+        </div>
+        <div class="tt-stars">
+          <span style="color:${ratingColor(b.rating)}">${starsHtml(b.rating)}</span>
+          <span class="tt-rating" style="color:${ratingColor(b.rating)}">${b.rating}</span>
+          <span style="font-size:0.65rem;color:#666;margin-left:4px;">${b.tags}</span>
+        </div>
+        <div class="tt-desc">${b.desc}</div>
+      </div>
+    `;
+  });
+  return html;
+}
+
+let tooltipVisible = false;
+function showTooltip(e, region) {
+  ttInner.innerHTML = buildTooltip(region);
+  positionTooltip(e);
+  tooltip.classList.add('visible');
+  tooltipVisible = true;
+}
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+  tooltipVisible = false;
+}
+function positionTooltip(e) {
+  const x = e.originalEvent ? e.originalEvent.clientX : e.clientX;
+  const y = e.originalEvent ? e.originalEvent.clientY : e.clientY;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const tw = 285, th = 200;
+  let left = x + 16;
+  let top = y - 20;
+  if (left + tw > vw - 10) left = x - tw - 16;
+  if (top + th > vh - 10) top = vh - th - 10;
+  if (top < 10) top = 10;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+}
+
+document.addEventListener('mousemove', e => {
+  if (tooltipVisible) {
+    positionTooltip({ clientX: e.clientX, clientY: e.clientY });
+  }
+});
+
+// ─── REGION POLYGONS ──────────────────────────────────────────────────────
+const normalStyle = {
+  fillColor: '#e8622a',
+  fillOpacity: 0.12,
+  color: '#e8622a',
+  weight: 1.5,
+  opacity: 0.7,
+  dashArray: null
+};
+const hoverStyle = {
+  fillOpacity: 0.30,
+  color: '#ffa060',
+  weight: 2.5,
+  opacity: 1
+};
+
+const regionLayers = [];
+
+regions.forEach(region => {
+  // Close the polygon ring
+  const ringCoords = [...region.coords, region.coords[0]];
+  const geojson = {
+    type: "Feature",
+    geometry: {
+      type: "Polygon",
+      // GeoJSON uses [lng, lat]
+      coordinates: [ringCoords.map(([lat, lng]) => [lng, lat])]
+    },
+    properties: {}
+  };
+
+  const layer = L.geoJSON(geojson, {
+    style: normalStyle,
+    onEachFeature: (feature, lyr) => {
+      lyr.on('mouseover', e => {
+        lyr.setStyle(hoverStyle);
+        showTooltip(e, region);
+      });
+      lyr.on('mousemove', e => {
+        positionTooltip(e);
+      });
+      lyr.on('mouseout', () => {
+        lyr.setStyle(normalStyle);
+        hideTooltip();
+      });
+      lyr.on('click', e => {
+        map.fitBounds(lyr.getBounds(), { padding: [60, 60], animate: true });
+      });
+    }
+  }).addTo(map);
+
+  // Add a subtle label marker at center
+  const lats = region.coords.map(c => c[0]);
+  const lngs = region.coords.map(c => c[1]);
+  const clat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const clng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+
+  const labelIcon = L.divIcon({
+    className: '',
+    html: `<div style="
+      background:rgba(15,15,15,0.7);
+      border:1px solid rgba(232,98,42,0.5);
+      border-radius:6px;
+      padding:3px 7px;
+      font-size:10px;
+      font-weight:700;
+      color:#f0c080;
+      white-space:nowrap;
+      letter-spacing:0.3px;
+      pointer-events:none;
+      font-family:'Segoe UI',sans-serif;
+    ">${region.label}</div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
+  });
+  L.marker([clat, clng], { icon: labelIcon, interactive: false }).addTo(map);
+
+  regionLayers.push(layer);
+});
+
+// ─── BANGALORE BOUNDARY (fetched from Nominatim in browser) ───────────────
+const statusDot = document.getElementById('dot');
+const statusText = document.getElementById('status-text');
+const loadingEl = document.getElementById('loading');
+
+// Remove loading overlay after a bit regardless
+setTimeout(() => { loadingEl.style.display = 'none'; }, 2000);
+
+function tryNominatim(queries, idx) {
+  if (idx >= queries.length) {
+    statusDot.className = 'status-dot error';
+    statusText.textContent = 'City boundary unavailable — showing neighborhood zones only.';
+    loadingEl.style.display = 'none';
+    return;
+  }
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queries[idx])}&format=json&polygon_geojson=1&limit=1`;
+  fetch(url, { headers: { 'User-Agent': 'BurgerMapApp/1.0 (educational)' } })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data[0] && data[0].geojson) {
+        const geo = data[0].geojson;
+        // Accept Polygon or MultiPolygon
+        if (geo.type === 'Polygon' || geo.type === 'MultiPolygon') {
+          L.geoJSON(geo, {
+            style: {
+              color: '#f0a040',
+              weight: 2,
+              fill: false,
+              dashArray: '6 5',
+              opacity: 0.7
+            },
+            interactive: false
+          }).addTo(map);
+
+          // Fit map to boundary
+          const bounds = L.geoJSON(geo).getBounds();
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [20, 20] });
+          }
+
+          statusDot.className = 'status-dot done';
+          statusText.textContent = `Bangalore boundary loaded from OpenStreetMap · ${data[0].display_name.split(',')[0]}`;
+          loadingEl.style.display = 'none';
+        } else {
+          tryNominatim(queries, idx + 1);
+        }
+      } else {
+        tryNominatim(queries, idx + 1);
+      }
+    })
+    .catch(() => tryNominatim(queries, idx + 1));
+}
+
+const nominatimQueries = [
+  "Bruhat Bengaluru Mahanagara Palike, Karnataka, India",
+  "Bengaluru Urban District, Karnataka, India",
+  "Bengaluru, Karnataka, India",
+  "Bangalore, India"
+];
+
+// Small delay to let map render first
+setTimeout(() => tryNominatim(nominatimQueries, 0), 600);
+</script>
+</body>
+</html>
